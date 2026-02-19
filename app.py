@@ -24,7 +24,7 @@ amount = st.number_input("Amount", min_value=0.0, key="add_amount")
 payer = st.selectbox("Paid by", members, key="add_payer")
 participants = st.multiselect("Participants", members, default=[payer], key="add_participants")
 
-if st.button("Add Expense"):
+if st.button("Add Expense", use_container_width=True):
 
     new_id = expenses_df["expense_id"].max() + 1 if len(expenses_df) else 1
 
@@ -46,20 +46,42 @@ if st.button("Add Expense"):
     st.rerun()
 
 # ===============================
-# SHOW EXPENSES
+# EXPENSES TABLE
 # ===============================
 st.header("📋 Expenses")
 st.dataframe(expenses_df.astype(str))
 
 # ===============================
-# TOTAL EXPENSE
+# TOTAL + PER HEAD
 # ===============================
 total_expense = expenses_df["amount"].sum()
+per_head = total_expense / len(members) if len(members) else 0
 
-st.metric("💵 Total Trip Expense", f"₹ {round(total_expense,2)}")
+c1, c2 = st.columns(2)
 
-avg_per_person = total_expense / len(members) if len(members) else 0
-st.metric("👤 Avg per person", f"₹ {round(avg_per_person,2)}")
+with c1:
+    st.metric("💵 Total Trip Expense", f"₹ {round(total_expense,2)}")
+
+with c2:
+    st.metric("👤 Per Head Expense", f"₹ {round(per_head,2)}")
+
+# ===============================
+# MY SHARE
+# ===============================
+st.subheader("👤 My Share")
+
+my_person = st.selectbox("Select person", members, key="my_share_person")
+
+my_share_total = 0
+
+for _, row in expenses_df.iterrows():
+    participants = str(row["participants"]).split(",")
+
+    if my_person in participants and len(participants) > 0:
+        share = row["amount"] / len(participants)
+        my_share_total += share
+
+st.metric(f"{my_person}'s Total Share", f"₹ {round(my_share_total,2)}")
 
 # ===============================
 # BALANCE DASHBOARD
@@ -72,7 +94,6 @@ for _, row in expenses_df.iterrows():
 
     payer = row["paid_by"]
     amount = row["amount"]
-
     participants = str(row["participants"]).split(",")
 
     if len(participants) == 0:
@@ -107,17 +128,14 @@ for person, amt in balance.items():
         debtors.append([person, -amt])
 
 settlements = []
-
 i = 0
 j = 0
 
 while i < len(debtors) and j < len(creditors):
-
     debtor, d_amt = debtors[i]
     creditor, c_amt = creditors[j]
 
     pay = min(d_amt, c_amt)
-
     settlements.append((debtor, creditor, round(pay, 2)))
 
     debtors[i][1] -= pay
@@ -139,12 +157,11 @@ else:
 # ===============================
 st.header("📱 WhatsApp Settlement Summary")
 
-trip_name = st.text_input("Trip name (optional)", value="Trip")
+trip_name = st.text_input("Trip name", value="Trip", key="trip_name")
 
 if st.button("Generate WhatsApp Message"):
 
     if settlements:
-
         msg = f"*{trip_name} Settlement*\n\n"
 
         for s in settlements:
@@ -157,7 +174,6 @@ if st.button("Generate WhatsApp Message"):
     else:
         st.info("Nothing to settle")
 
-
 # ===============================
 # EDIT / DELETE
 # ===============================
@@ -166,7 +182,6 @@ st.header("✏️ Edit / Delete Expense")
 if len(expenses_df) > 0:
 
     expense_ids = expenses_df["expense_id"].tolist()
-
     selected_id = st.selectbox("Select expense", expense_ids, key="select_expense")
 
     selected_row = expenses_df[expenses_df["expense_id"] == selected_id].iloc[0]
@@ -174,7 +189,6 @@ if len(expenses_df) > 0:
     st.write("Selected expense:")
     st.write(selected_row.astype(str))
 
-    # Safe date conversion
     try:
         default_date = pd.to_datetime(selected_row["date"])
     except:
@@ -182,25 +196,13 @@ if len(expenses_df) > 0:
 
     st.subheader("Edit Expense")
 
-    edit_date = st.date_input("Date", default_date, key="edit_date")
-    edit_desc = st.text_input("Description", selected_row["description"], key="edit_desc")
-    edit_amount = st.number_input("Amount", value=float(selected_row["amount"]), key="edit_amount")
-    edit_payer = st.selectbox(
-        "Paid by",
-        members,
-        index=members.index(selected_row["paid_by"]),
-        key="edit_payer"
-    )
+    edit_date = st.date_input("Date", default_date, key=f"edit_date_{selected_id}")
+    edit_desc = st.text_input("Description", selected_row["description"], key=f"edit_desc_{selected_id}")
+    edit_amount = st.number_input("Amount", value=float(selected_row["amount"]), key=f"edit_amount_{selected_id}")
+    edit_payer = st.selectbox("Paid by", members, index=members.index(selected_row["paid_by"]), key=f"edit_payer_{selected_id}")
+    edit_participants = st.multiselect("Participants", members, default=str(selected_row["participants"]).split(","), key=f"edit_participants_{selected_id}")
 
-    edit_participants = st.multiselect(
-        "Participants",
-        members,
-        default=str(selected_row["participants"]).split(","),
-        key="edit_participants"
-    )
-
-    # SAVE
-    if st.button("💾 Save Changes"):
+    if st.button("💾 Save Changes", use_container_width=True):
 
         expenses_df.loc[expenses_df["expense_id"] == selected_id, "date"] = edit_date
         expenses_df.loc[expenses_df["expense_id"] == selected_id, "description"] = edit_desc
@@ -214,8 +216,7 @@ if len(expenses_df) > 0:
         st.success("Expense updated")
         st.rerun()
 
-    # DELETE
-    if st.button("🗑️ Delete Expense"):
+    if st.button("🗑️ Delete Expense", use_container_width=True):
 
         expenses_df = expenses_df[expenses_df["expense_id"] != selected_id]
 
@@ -224,8 +225,9 @@ if len(expenses_df) > 0:
 
         st.success("Expense deleted")
         st.rerun()
+
 # ===============================
-# BACKUP DOWNLOAD
+# BACKUP
 # ===============================
 st.header("💾 Backup & Export")
 
@@ -236,4 +238,3 @@ with open(FILE, "rb") as f:
         file_name="Travel_Expense_Backup.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
